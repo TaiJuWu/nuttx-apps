@@ -30,6 +30,7 @@
 #include <semaphore.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include "ostest.h"
 
@@ -65,10 +66,22 @@
  ****************************************************************************/
 
 static sem_t g_rrsem;
+static struct timespec g_thread_start[3];
+static struct timespec g_thread_end[3];
 
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
+
+static void show_timespec(const char *label, const struct timespec *ts)
+{
+  printf("%s: %u seconds, %ld nanoseconds\n", label, ts->tv_sec, ts->tv_nsec);
+}
+
+static long timespec_diff_in_nanoseconds(struct timespec start, struct timespec end)
+{
+  return (end.tv_sec - start.tv_sec) * 1000000000 + (end.tv_nsec - start.tv_nsec);
+}
 
 /****************************************************************************
  * Name: get_primes
@@ -122,6 +135,7 @@ static FAR void *get_primes_thread(FAR void *parameter)
   int i;
 
   while (sem_wait(&g_rrsem) < 0);
+  timespec_get(&g_thread_start[id], TIME_UTC);
 
   printf("get_primes_thread id=%d started, "
          "looking for primes < %d, doing %d run(s)\n",
@@ -134,7 +148,7 @@ static FAR void *get_primes_thread(FAR void *parameter)
 
   printf("get_primes_thread id=%d finished, found %d primes, "
          "last one was %d\n", id, count, last);
-
+  timespec_get(&g_thread_end[id], TIME_UTC);
   pthread_exit(NULL);
   return NULL; /* To keep some compilers happy */
 }
@@ -233,6 +247,20 @@ void rr_test(void)
 
   pthread_join(get_primes2_thread, &result);
   pthread_join(get_primes1_thread, &result);
+
+  long time_diff_thread1 = timespec_diff_in_nanoseconds(g_thread_start[1], g_thread_end[1]);
+  long time_diff_thread2 = timespec_diff_in_nanoseconds(g_thread_start[2], g_thread_end[2]);
+
+  if(abs((time_diff_thread1 - time_diff_thread2))/1000000000)
+  {
+    printf("abs((time_diff_thread1 - time_diff_thread2))/1000000000:%d\n",abs((time_diff_thread1 - time_diff_thread2))/1000000000);
+    show_timespec("thread1 start time:", &g_thread_start[1]);
+    show_timespec("thread2 start time:", &g_thread_start[2]);
+    show_timespec("thread1 end time:", &g_thread_end[1]);
+    show_timespec("thread2 end time:", &g_thread_end[2]);
+    ASSERT(false);
+  }
+
   printf("rr_test: Done\n");
   sem_destroy(&g_rrsem);
 }
