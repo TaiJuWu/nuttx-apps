@@ -24,17 +24,61 @@
 
 #include <nuttx/config.h>
 #include <stdio.h>
+#include <nuttx/spinlock.h>
+#include <pthread.h>
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-
+fair_spinlock_list_t test_fair_spinlock_list;
 /****************************************************************************
  * hello_main
  ****************************************************************************/
+void *thread_function(void *arg)
+{
+  #define ENTER_TIMES 5
+    int thread_id = (int)arg;
+    fair_spinlock_t lock;
+    fair_spinlock_init(&lock);
+
+    for(int i = 1; i <= ENTER_TIMES; ++i) {
+      fair_spin_lock(&test_fair_spinlock_list, &lock);
+      printf("Thread %d is enter lock %d time.\n", thread_id, i);
+      // Do some work here...
+      int counter = 0;
+      while(counter++ < 100);
+      printf("Thread %d is exiting lock %d time.\n", thread_id, i);
+      fair_spin_unlock(&test_fair_spinlock_list, &lock);
+    }
+    
+    pthread_exit(NULL);
+}
+
 
 int main(int argc, FAR char *argv[])
 {
-  printf("Hello, World!!\n");
+#define THREAD_NUM 20
+    pthread_t thread[THREAD_NUM];
+    int ret;
+    
+    fair_spinlock_list_init(&test_fair_spinlock_list);
+    printf("Main thread is running.\n");
+
+    // Create threads
+    for(int i = 0; i < THREAD_NUM; ++i){
+      ret = pthread_create(&thread[i], NULL, thread_function, (void *)i);
+      if (ret != 0) {
+          printf("Error creating thread 1: %d\n", ret);
+          return 1;
+      }
+    }
+    
+    // Wait for threads to finish
+    for(int i = 0; i < THREAD_NUM; ++i){
+      pthread_join(thread[i], NULL);
+    }
+    
+
+    printf("Main thread is exiting.\n");
   return 0;
 }
