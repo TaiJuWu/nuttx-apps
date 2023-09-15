@@ -44,12 +44,13 @@ void *thread_function(void *arg)
 
     for(int i = 1; i <= ENTER_TIMES; ++i) {
       fair_spin_lock(&test_fair_spinlock_list, &lock);
-      printf("[CPU%d]Thread %d is enter lock %d time.\n", sched_getcpu(),thread_id, i);
+      printf("[CPU%d] Thread %d is enter lock %d time.\n", sched_getcpu(),thread_id, i);
       // Do some work here...
       int counter = 0;
       while(counter++ < 100);
-      printf("[CPU%d]Thread %d is exiting lock %d time.\n", sched_getcpu(),thread_id, i);
+      printf("[CPU%d] Thread %d is exiting lock %d time.\n", sched_getcpu(),thread_id, i);
       fair_spin_unlock(&test_fair_spinlock_list, &lock);
+      sched_yield();
     }
     
     pthread_exit(NULL);
@@ -67,7 +68,7 @@ int main(int argc, FAR char *argv[])
 
     // Create threads
     for(int i = 0; i < THREAD_NUM; ++i){
-      ret = pthread_create(&thread[i], NULL, thread_function, (void *)(&i));
+      ret = pthread_create(&thread[i], NULL, thread_function, (void *)(&thread[i]));
       if (ret != 0) {
           printf("Error creating thread 1: %d\n", ret);
           return 1;
