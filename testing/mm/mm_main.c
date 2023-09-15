@@ -31,6 +31,26 @@
 #include <assert.h>
 #include <unistd.h>
 
+#include <assert.h>
+#include <limits.h>
+#include <pthread.h>
+#include <sched.h>
+#include <semaphore.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/param.h>
+#include <sys/poll.h>
+
+struct performance_time_s
+{
+  size_t start;
+  size_t end;
+};
+
 #ifdef CONFIG_TESTING_MM_POWEROFF
 #include <sys/boardctl.h>
 #endif
@@ -315,31 +335,11 @@ static int mm_stress_test(int argc, FAR char *argv[])
 {
   FAR unsigned char *tmp;
   int delay = 1;
-  int prio = 0;
+  int prio = 100;
   int size;
   int i;
   int maxsize = 1024;
-
-  while ((i = getopt(argc, argv, "d:p:s:")) != ERROR)
-    {
-      if (i == 'd')
-        {
-          delay = atoi(optarg);
-        }
-      else if (i == 'p')
-        {
-          prio = atoi(optarg);
-        }
-      else if (i == 's')
-        {
-          maxsize = atoi(optarg);
-        }
-      else
-        {
-          printf("Unrecognized option: '%c'\n", i);
-          return -EINVAL;
-        }
-    }
+  int counter = 0;
 
   if (prio != 0)
     {
@@ -365,6 +365,7 @@ static int mm_stress_test(int argc, FAR char *argv[])
         }
 
       free(tmp);
+      counter++;
     }
 
   return 0;
@@ -380,10 +381,13 @@ static int mm_stress_test(int argc, FAR char *argv[])
 
 int main(int argc, FAR char *argv[])
 {
-  if (argc > 1)
-    {
-      return mm_stress_test(argc, argv);
-    }
+  struct performance_time_s time;
+  struct timespec ts;
+
+
+  time.start = up_perf_gettime();
+  
+  mm_stress_test(argc, argv);
 
   mm_showmallinfo();
 
@@ -433,6 +437,10 @@ int main(int argc, FAR char *argv[])
 
   boardctl(BOARDIOC_POWEROFF, 0);
 #endif
+
+  time.end = up_perf_gettime();
+  up_perf_convert(time.end - time.start, &ts);
+  printf("mm test runtime: %ld %ld", ts.tv_sec, ts.tv_nsec);
 
   return 0;
 }
