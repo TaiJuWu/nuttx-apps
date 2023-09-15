@@ -27,24 +27,31 @@
 #include <nuttx/spinlock.h>
 #include <pthread.h>
 #include <sched.h>
+#include <nuttx/semaphore.h>
 
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
 fair_spinlock_list_t test_fair_spinlock_list;
+sem_t sem;
 /****************************************************************************
  * hello_main
  ****************************************************************************/
 void *thread_function(void *arg)
 {
+  nxsem_wait(&sem);
   #define ENTER_TIMES 5
     int thread_id = *((int *)arg);
+    struct sched_param param;
+    int policy;
+
     fair_spinlock_t lock;
     fair_spinlock_init(&lock);
+    pthread_getschedparam(0, &policy, &param);
 
     for(int i = 1; i <= ENTER_TIMES; ++i) {
       fair_spin_lock(&test_fair_spinlock_list, &lock);
-      printf("[CPU%d] Thread %d is enter lock %d time.\n", sched_getcpu(),thread_id, i);
+      printf("[CPU%d] Thread %d priority %d is enter lock %d time.\n", sched_getcpu(),thread_id, param.sched_priority, i);
       // Do some work here...
       int counter = 0;
       while(counter++ < 100);
@@ -60,21 +67,33 @@ void *thread_function(void *arg)
 int main(int argc, FAR char *argv[])
 {
 #define THREAD_NUM 20
-    pthread_t thread[THREAD_NUM];
     int ret;
-    
+    pthread_t thread[THREAD_NUM];
+    struct sched_param param[THREAD_NUM];
+
+    nxsem_init(&sem, 0, -5);
     fair_spinlock_list_init(&test_fair_spinlock_list);
     printf("Main thread is running.\n");
 
     // Create threads
     for(int i = 0; i < THREAD_NUM; ++i){
+      param[i].sched_priority = sched_get_priority_max(SCHED_RR) - i * 10;
       ret = pthread_create(&thread[i], NULL, thread_function, (void *)(&thread[i]));
       if (ret != 0) {
           printf("Error creating thread 1: %d\n", ret);
           return 1;
       }
+      ret = sched_setscheduler(thread[i], SCHED_RR, &param[i]);
+      if (ret != 0) {
+          printf("Error set thread priority: %d\n", ret);
+          return 1;
+      }
     }
     
+    for(int i = 0; i < THREAD_NUM;++i){
+      sem_post(&sem);
+    }
+
     // Wait for threads to finish
     for(int i = 0; i < THREAD_NUM; ++i){
       pthread_join(thread[i], NULL);
