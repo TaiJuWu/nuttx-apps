@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <nuttx/spinlock.h>
 #include <pthread.h>
+#include <sched.h>
 
 /****************************************************************************
  * Public Functions
@@ -37,17 +38,17 @@ fair_spinlock_list_t test_fair_spinlock_list;
 void *thread_function(void *arg)
 {
   #define ENTER_TIMES 5
-    int thread_id = (int)arg;
+    int thread_id = *((int *)arg);
     fair_spinlock_t lock;
     fair_spinlock_init(&lock);
 
     for(int i = 1; i <= ENTER_TIMES; ++i) {
       fair_spin_lock(&test_fair_spinlock_list, &lock);
-      printf("Thread %d is enter lock %d time.\n", thread_id, i);
+      printf("[CPU%d]Thread %d is enter lock %d time.\n", sched_getcpu(),thread_id, i);
       // Do some work here...
       int counter = 0;
       while(counter++ < 100);
-      printf("Thread %d is exiting lock %d time.\n", thread_id, i);
+      printf("[CPU%d]Thread %d is exiting lock %d time.\n", sched_getcpu(),thread_id, i);
       fair_spin_unlock(&test_fair_spinlock_list, &lock);
     }
     
@@ -66,7 +67,7 @@ int main(int argc, FAR char *argv[])
 
     // Create threads
     for(int i = 0; i < THREAD_NUM; ++i){
-      ret = pthread_create(&thread[i], NULL, thread_function, (void *)i);
+      ret = pthread_create(&thread[i], NULL, thread_function, (void *)(&i));
       if (ret != 0) {
           printf("Error creating thread 1: %d\n", ret);
           return 1;
